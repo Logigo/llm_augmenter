@@ -1,0 +1,6 @@
+transformers
+requests
+torch
+openai
+transformers
+toolz

@@ -1,0 +1,4 @@
+openai.yaml
+venv/
+__pycache__
+.env
