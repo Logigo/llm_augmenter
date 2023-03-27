@@ -1,11 +1,13 @@
+import copy
 from typing import List, Dict
 from dataclasses import dataclass
 from toolz.curried import map, pipe
 
 from oop_models._types import Evidence
 from utils.utils import (
-    query_wikipedia, query_bing, query_gpt2, query_gpt3
+    query_wikipedia, query_bing, query_gpt3
 )
+
 """
 Contains KnowledgeConsolidator, and Prompt Engine
 
@@ -43,7 +45,31 @@ class _KnowledgeNode():
 
 class KnowledgeConsolidator():
     def __init__(self) -> None:
-        pass
+        self.nodes_by_entity: Dict[str, _KnowledgeNode] = {}
+
+    def store_node(self, node: _KnowledgeNode) -> _KnowledgeNode:
+        self.nodes_by_entity[node.entity] = node
+        return node
+
+    def connect_node(self, _initial_node: _KnowledgeNode) -> _KnowledgeNode:
+        # Browses through a node's description, and for each entity, connects the node to the corresponding node in the graph if it exists.
+        pipe([
+            _initial_node.text,
+            _generate_find_entities_prompt,
+            query_gpt3,
+            lambda response: response.split('\n'), # Entities are here
+            map(lambda entity: self.nodes_by_entity.get(entity, None)), # List[str] -> List[_KnowledgeNode]
+            # Filter out any None values
+            filter(lambda node: node is not None),
+            # We are left with nodes that we want to connect to the current node
+            map(lambda node: _initial_node.edges.append(node)),
+            list # Exhaust the generator
+        ])
+
+        # TODO: This can be done with a threshold over an embedding of the node's text with the target node's text
+        # For a node, connect it to all other nodes within a certain distance from its embedding
+
+        return _initial_node
 
     def query_retriever(self, q: str, h_q: List[str]) -> List[str]:
         """
@@ -58,7 +84,6 @@ class KnowledgeConsolidator():
             list
         ])
 
-
     def query_entity_linker(self, raw_evidence: List[str]) -> List[_KnowledgeNode]:
         """
         Given a list of raw evidence retrieved from APIs, links each entity in raw evidence to its corresponding Wikipedia description
@@ -71,7 +96,11 @@ class KnowledgeConsolidator():
             map(lambda entity: (entity, query_wikipedia(entity))),
             map(lambda entity_desc_url: _KnowledgeNode(entity_desc_url[0],
                                                        entity_desc_url[1],
-                                                       entity_desc_url[2], [])),
+                                                       entity_desc_url[2], [])), # List[Tuple[str, str, str]] -> List[_KnowledgeNode]
+            # We now want to connect the nodes in the graph. We do this by doing more named entity recognition on the text of each node,
+            #  and if any entities in existing Nodes are found, we add an edge from the existing node to the new node.
+            map(lambda node: self.store_node(node)), # List[_KnowledgeNode] -> List[_KnowledgeNode]
+            map(lambda node: self.connect_node(node)), # List[_KnowledgeNode] -> List[_KnowledgeNode]
             set,
             list
         ])
@@ -111,13 +140,18 @@ def _generate_get_queries_prompt(q: str, h_q: List[str], e: List[str]) -> str:
         Please only generate the queries, separated by a newline. Do not reply to me, just generate the queries. Here are the questions:\n"""+ {'\n'.join([q, *h_q])}
 
 def _generate_find_entities_prompt(corpus: str) -> str:
-    pass
+        return f"""
+        Given the following text, please extract all the 'named entities' that it refers to. Make sure that each entity is likely to have its own Wikipedia page, and that the entity is not a substring of another entity.
+        Also make sure that you do not extract any entities that are not actually named entities. For example, if the text says 'the cat sat on the mat', you should not extract 'cat' or 'mat' as entities.
+        Please only generate the entities, separated by a newline. Do not reply to me, just generate the entities. Here is the text:
+        "{corpus}"
+        """
 
 def _prune_irrelevant_evidence(evidence_graph: List[_KnowledgeNode]) -> List[_KnowledgeNode]:
     # TODO: Implement. God knows what this means.
     return evidence_graph
 
-def _create_shortlist_of_evidence_chains(evidence_graph: List[_KnowledgeNode]) -> List[Evidence]:
-    # TODO: Implement. List of non-duplicate paths in evidence_graph from root to leaf
-    pass
-
+def _create_shortlist_of_evidence_chains(evidence_graph: List[_KnowledgeNode]) -> List[List[Evidence]]:
+    # This is just a proof-of-concept. It is hardcoded to return only chains of length 3.
+    # Ideally this would be a condensed version of the evidence graph, which somehow returns only relevant knowledge chains.
+    return [[]]

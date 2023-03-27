@@ -13,8 +13,10 @@ from oop_models._types import Actions
 
 
 - Policy learning usually requires large amounts of human-machine interactions (e.g. in RLHF. To get around this, they train this:
-    1. 'Bootstrapping from rule-based policy': domain experts encode task-specific knowledge and business logic into IF-THEN rules (e.g. if product name in user query for customer service, always call KC to collect info about product from product database).
-    2. a language model simulates how human users interact with LLM-Augmenter. Any valid response from the augmenter that passes Utility's evaluation can be used as a training example. This sort of allows the augmenter to self-improve because it can self-generate examples.
+    1. 'Bootstrapping from rule-based policy': domain experts encode task-specific knowledge and business logic into IF-THEN rules
+      (e.g. if product name in user query for customer service, always call KC to collect info about product from product database).
+    2. A language model simulates how human users interact with LLM-Augmenter. Any valid response from the augmenter that passes Utility's evaluation can be used as a training example.
+        This sort of allows the augmenter to self-improve because it can self-generate examples.
     3. Actually interacting with humans
 
 """
